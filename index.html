@@ -1,289 +1,122 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Web VR シアター</title>
-  <script src="https://aframe.io"></script>
+  <meta charset="UTF-8" />
+  <title>WebVR シアター</title>
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
   <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: #000;
-      font-family: sans-serif;
+    body { margin: 0; font-family: sans-serif; background: #0b0c10; color: #fff; }
+    #ui {
+      position: fixed; top: 16px; left: 16px; z-index: 10;
+      background: rgba(15, 18, 28, 0.85); padding: 14px 18px;
+      border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
+      display: flex; flex-direction: column; gap: 10px; max-width: 340px;
     }
-    #overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(15, 15, 20, 0.95);
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button, select {
+      background: #1f2833; color: #fff; border: 1px solid #45a29e;
+      padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
     }
-    h1 {
-      font-size: 1.5rem;
-      margin-bottom: 10px;
-    }
-    p {
-      font-size: 0.9rem;
-      color: #ccc;
-      max-width: 400px;
-      line-height: 1.5;
-      margin-bottom: 20px;
-    }
-    .btn {
-      background: #e50914;
-      color: white;
-      border: none;
-      padding: 16px 32px;
-      font-size: 1.1rem;
-      font-weight: bold;
-      border-radius: 30px;
-      cursor: pointer;
-      margin: 8px;
-      box-shadow: 0 4px 15px rgba(229, 9, 20, 0.4);
-    }
-    .btn-sub {
-      background: #333;
-      color: #eee;
-      border: 1px solid #555;
-      padding: 12px 24px;
-      font-size: 0.95rem;
-      border-radius: 25px;
-      cursor: pointer;
-      margin: 8px;
-    }
-    #file-input {
-      display: none;
-    }
-    #controls {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9998;
-      display: none;
-      gap: 8px;
-      background: rgba(0, 0, 0, 0.8);
-      padding: 10px 16px;
-      border-radius: 25px;
-      white-space: nowrap;
-    }
-    .ctrl-btn {
-      background: #444;
-      color: #fff;
-      border: none;
-      padding: 8px 14px;
-      border-radius: 15px;
-      font-size: 0.85rem;
-    }
-    #toast {
-      position: fixed;
-      top: 15px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(229, 9, 20, 0.9);
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      z-index: 10000;
-      display: none;
-    }
+    button:hover { background: #2c3a4b; }
+    small { color: #9aa5b1; line-height: 1.4; }
   </style>
 </head>
 <body>
-
-  <div id="toast"></div>
-
-  <!-- スタート画面 -->
-  <div id="overlay">
-    <h1>🎬 Web VR シアター</h1>
-    <p>端末内の動画ファイルを選択して、映画館の大画面で楽しめます。</p>
-    
-    <button type="button" class="btn" id="select-btn">動画を選択して開始</button>
-    <button type="button" class="btn-sub" id="enter-empty-btn">動画なしで映画館に入る</button>
-    <input type="file" id="file-input" accept="video/*">
-    
-    <p style="font-size: 0.75rem; color: #888; margin-top: 20px;">
-      ※スマホを動かすと視点が連動します。<br>
-      ※右下のゴーグルアイコンでVR2画面表示になります。
-    </p>
+  <div id="ui">
+    <strong>VR 映画館プレイヤー</strong>
+    <input type="file" id="fileInput" accept="video/*" />
+    <div class="row">
+      <button id="playBtn">再生 / 一時停止</button>
+      <select id="modeSelect">
+        <option value="screen">映画館スクリーン（平面/湾曲）</option>
+        <option value="360">360° 全天球VRモード</option>
+      </select>
+      <button id="lightBtn">館内照明 切替</button>
+    </div>
+    <small>
+      マウスドラッグで視点移動、WASDで席の前後左右移動。<br />
+      VRゴーグルでは右下のVRボタンからWebXRに入れます。
+    </small>
   </div>
 
-  <!-- 再生コントロール -->
-  <div id="controls">
-    <button type="button" class="ctrl-btn" id="play-pause-btn">再生 / 停止</button>
-    <button type="button" class="ctrl-btn" id="reset-view-btn">正面リセット</button>
-    <button type="button" class="ctrl-btn" id="change-video-btn">動画選択</button>
-  </div>
+  <video id="vrVideo" crossorigin="anonymous" playsinline loop style="display:none"></video>
 
-  <!-- VR空間 -->
-  <a-scene vr-mode-ui="enabled: true" renderer="antialias: true;">
-    <a-assets>
-      <!-- ローカル動画再生を妨げるcrossorigin属性を削除 -->
-      <video id="theater-video" playsinline webkit-playsinline loop></video>
-    </a-assets>
+  <a-scene id="scene" vr-mode-ui="enabled: true">
+    <!-- 館内照明 -->
+    <a-light id="ambientLight" type="ambient" color="#667799" intensity="0.6"></a-light>
+    <a-light id="screenGlow" type="point" color="#aaccff" intensity="1.2" position="0 4 -8" distance="25"></a-light>
 
-    <!-- 照明 -->
-    <a-light type="ambient" color="#333344" intensity="0.8"></a-light>
-    <a-light type="point" position="0 4 -2" color="#ffffff" intensity="0.5"></a-light>
+    <!-- 映画館の床・壁・座席イメージ -->
+    <a-plane id="floor" rotation="-90 0 0" width="24" height="30" color="#161822" position="0 0 -5"></a-plane>
+    <a-box id="backWall" position="0 5 10" width="24" height="10" depth="0.5" color="#12141c"></a-box>
+    <a-box id="leftWall" position="-12 5 -5" width="0.5" height="10" depth="30" color="#12141c"></a-box>
+    <a-box id="rightWall" position="12 5 -5" width="0.5" height="10" depth="30" color="#12141c"></a-box>
 
-    <!-- 映画館の部屋 -->
-    <a-plane position="0 -2 -5" rotation="-90 0 0" width="20" height="25" color="#1a0d0d"></a-plane>
-    <a-plane position="0 8 -5" rotation="90 0 0" width="20" height="25" color="#0d0d12"></a-plane>
-    <a-plane position="-10 3 -5" rotation="0 90 0" width="25" height="10" color="#14141c"></a-plane>
-    <a-plane position="10 3 -5" rotation="0 -90 0" width="25" height="10" color="#14141c"></a-plane>
-    <a-plane position="0 3 -15" rotation="0 0 0" width="20" height="10" color="#08080a"></a-plane>
-    <a-plane position="0 3 7" rotation="0 180 0" width="20" height="10" color="#14141c"></a-plane>
+    <!-- 前の座席（背もたれシルエット） -->
+    <a-box position="-2.2 0.55 -6.5" width="1.1" height="1.1" depth="0.4" color="#24161b"></a-box>
+    <a-box position="0 0.55 -6.5" width="1.1" height="1.1" depth="0.4" color="#24161b"></a-box>
+    <a-box position="2.2 0.55 -6.5" width="1.1" height="1.1" depth="0.4" color="#24161b"></a-box>
 
-    <!-- スクリーン枠とスクリーン -->
-    <a-plane id="screen-frame" position="0 2.5 -14.85" width="16.4" height="9.4" color="#000000"></a-plane>
-    <a-video id="screen" src="#theater-video" position="0 2.5 -14.8" width="16" height="9" color="#ffffff"></a-video>
+    <!-- 映画館スクリーン -->
+    <a-curvedimage
+      id="cinemaScreen"
+      src="#vrVideo"
+      radius="11"
+      theta-length="65"
+      theta-start="-32.5"
+      height="6.2"
+      position="0 4.2 -1"
+      material="shader: flat; side: double"
+    ></a-curvedimage>
 
-    <!-- 座席 -->
-    
+    <!-- 360度動画用スカイ球体（初期は非表示） -->
+    <a-sky id="sky360" src="#vrVideo" visible="false" material="shader: flat"></a-sky>
 
-    <!-- カメラ -->
-    
-      <a-camera id="main-camera" look-controls="magicWindowTrackingEnabled: true; touchEnabled: true;"></a-camera>
-    
+    <!-- 観客カメラ -->
+    <a-entity id="rig" position="0 1.6 -3.5">
+      <a-camera look-controls wasd-controls></a-camera>
+    </a-entity>
   </a-scene>
 
   <script>
-    const fileInput = document.getElementById('file-input');
-    const selectBtn = document.getElementById('select-btn');
-    const enterEmptyBtn = document.getElementById('enter-empty-btn');
-    const overlay = document.getElementById('overlay');
-    const toast = document.getElementById('toast');
-    const video = document.getElementById('theater-video');
-    const screen = document.getElementById('screen');
-    const screenFrame = document.getElementById('screen-frame');
-    const controls = document.getElementById('controls');
-    const playPauseBtn = document.getElementById('play-pause-btn');
-    const resetViewBtn = document.getElementById('reset-view-btn');
-    const changeVideoBtn = document.getElementById('change-video-btn');
-    const cameraRig = document.getElementById('camera-rig');
-    const mainCamera = document.getElementById('main-camera');
+    const fileInput = document.getElementById('fileInput');
+    const video = document.getElementById('vrVideo');
+    const playBtn = document.getElementById('playBtn');
+    const modeSelect = document.getElementById('modeSelect');
+    const lightBtn = document.getElementById('lightBtn');
+    const cinemaScreen = document.getElementById('cinemaScreen');
+    const sky360 = document.getElementById('sky360');
+    const ambientLight = document.getElementById('ambientLight');
+    const theaterProps = ['floor', 'backWall', 'leftWall', 'rightWall'];
 
-    function showToast(msg) {
-      toast.textContent = msg;
-      toast.style.display = 'block';
-      setTimeout(() => { toast.style.display = 'none'; }, 4000);
-    }
+    let lightsDimmed = false;
 
-    // 座席の生成
-    const seatsContainer = document.getElementById('seats');
-    for (let row = 0; row < 3; row++) {
-      for (let col = -4; col <= 4; col++) {
-        const seat = document.createElement('a-box');
-        seat.setAttribute('position', `${col * 1.4} ${-1.2 - row * 0.2} ${-3 - row * 2.5}`);
-        seat.setAttribute('width', '0.9');
-        seat.setAttribute('height', '1.2');
-        seat.setAttribute('depth', '0.6');
-        seat.setAttribute('color', '#3a0e14');
-        seatsContainer.appendChild(seat);
-      }
-    }
-
-    // ジャイロ許可リクエスト
-    function requestGyro() {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().catch(console.error);
-      }
-    }
-
-    // 「動画を選択して開始」ボタン
-    selectBtn.addEventListener('click', () => {
-      requestGyro();
-      fileInput.click();
-    });
-
-    // 「動画なしで映画館に入る」ボタン（動作確認用）
-    enterEmptyBtn.addEventListener('click', () => {
-      requestGyro();
-      overlay.style.display = 'none';
-      controls.style.display = 'flex';
-      showToast('映画館モードに入りました');
-    });
-
-    // 動画ファイルが選ばれた時の処理
-    fileInput.addEventListener('change', (event) => {
-      const file = event.target.files.item(0);
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
       if (!file) return;
+      const url = URL.createObjectURL(file);
+      video.src = url;
+      video.play().catch(() => {});
+    });
 
-      // まず即座にスタート画面を消して映画館に入る
-      overlay.style.display = 'none';
-      controls.style.display = 'flex';
-      showToast('読み込み中: ' + file.name);
+    playBtn.addEventListener('click', () => {
+      if (!video.src) return;
+      if (video.paused) video.play();
+      else video.pause();
+    });
 
-      const fileURL = URL.createObjectURL(file);
-      video.src = fileURL;
-
-      video.onloadedmetadata = () => {
-        if (video.videoWidth && video.videoHeight) {
-          const aspect = video.videoWidth / video.videoHeight;
-          const screenHeight = 9;
-          const screenWidth = screenHeight * aspect;
-          screen.setAttribute('width', screenWidth);
-          screen.setAttribute('height', screenHeight);
-          screenFrame.setAttribute('width', screenWidth + 0.4);
-          screenFrame.setAttribute('height', screenHeight + 0.4);
-        }
-      };
-
-      video.onerror = () => {
-        showToast('この動画形式はブラウザで再生できません（MP4推奨）');
-      };
-
-      video.play().then(() => {
-        playPauseBtn.textContent = '一時停止';
-      }).catch(() => {
-        playPauseBtn.textContent = '再生する';
-        showToast('下の「再生する」ボタンを押してください');
+    modeSelect.addEventListener('change', () => {
+      const is360 = modeSelect.value === '360';
+      cinemaScreen.setAttribute('visible', !is360);
+      sky360.setAttribute('visible', is360);
+      theaterProps.forEach((id) => {
+        document.getElementById(id).setAttribute('visible', !is360);
       });
     });
 
-    // 再生 / 一時停止
-    playPauseBtn.addEventListener('click', () => {
-      if (!video.src) {
-        fileInput.click();
-        return;
-      }
-      if (video.paused) {
-        video.play();
-        playPauseBtn.textContent = '一時停止';
-      } else {
-        video.pause();
-        playPauseBtn.textContent = '再生する';
-      }
-    });
-
-    // 正面リセット
-    resetViewBtn.addEventListener('click', () => {
-      const currentRot = mainCamera.getAttribute('rotation');
-      cameraRig.setAttribute('rotation', `0 ${-currentRot.y} 0`);
-      showToast('正面をリセットしました');
-    });
-
-    // 動画選択へ戻る
-    changeVideoBtn.addEventListener('click', () => {
-      video.pause();
-      fileInput.value = '';
-      overlay.style.display = 'flex';
-      controls.style.display = 'none';
+    lightBtn.addEventListener('click', () => {
+      lightsDimmed = !lightsDimmed;
+      ambientLight.setAttribute('intensity', lightsDimmed ? 0.12 : 0.6);
     });
   </script>
 </body>
