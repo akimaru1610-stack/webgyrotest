@@ -41,32 +41,32 @@
       color: #ccc;
       max-width: 400px;
       line-height: 1.5;
-      margin-bottom: 25px;
+      margin-bottom: 20px;
     }
     .btn {
       background: #e50914;
       color: white;
       border: none;
-      padding: 15px 30px;
+      padding: 16px 32px;
       font-size: 1.1rem;
       font-weight: bold;
       border-radius: 30px;
       cursor: pointer;
-      margin: 10px;
+      margin: 8px;
       box-shadow: 0 4px 15px rgba(229, 9, 20, 0.4);
-      display: inline-block;
     }
-    .btn:active {
-      transform: scale(0.98);
+    .btn-sub {
+      background: #333;
+      color: #eee;
+      border: 1px solid #555;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      border-radius: 25px;
+      cursor: pointer;
+      margin: 8px;
     }
     #file-input {
       display: none;
-    }
-    #status-msg {
-      color: #ff6b6b;
-      font-size: 0.85rem;
-      margin-top: 10px;
-      min-height: 1.2em;
     }
     #controls {
       position: fixed;
@@ -75,9 +75,9 @@
       transform: translateX(-50%);
       z-index: 9998;
       display: none;
-      gap: 10px;
-      background: rgba(0, 0, 0, 0.75);
-      padding: 10px 18px;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px 16px;
       border-radius: 25px;
       white-space: nowrap;
     }
@@ -89,21 +89,34 @@
       border-radius: 15px;
       font-size: 0.85rem;
     }
+    #toast {
+      position: fixed;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(229, 9, 20, 0.9);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      z-index: 10000;
+      display: none;
+    }
   </style>
 </head>
 <body>
 
+  <div id="toast"></div>
+
   <!-- スタート画面 -->
   <div id="overlay">
     <h1>🎬 Web VR シアター</h1>
-    <p>端末内の動画ファイル（MP4 / MOVなど）を選択して映画館の大画面で再生します。</p>
+    <p>端末内の動画ファイルを選択して、映画館の大画面で楽しめます。</p>
     
-    <!-- iOSのファイル選択不具合を防ぐためacceptを広めに設定 -->
-    <label for="file-input" class="btn" id="select-label">動画を選択して開始</label>
-    <input type="file" id="file-input" accept="video/*,video/mp4,video/quicktime">
+    <button type="button" class="btn" id="select-btn">動画を選択して開始</button>
+    <button type="button" class="btn-sub" id="enter-empty-btn">動画なしで映画館に入る</button>
+    <input type="file" id="file-input" accept="video/*">
     
-    <div id="status-msg"></div>
-
     <p style="font-size: 0.75rem; color: #888; margin-top: 20px;">
       ※スマホを動かすと視点が連動します。<br>
       ※右下のゴーグルアイコンでVR2画面表示になります。
@@ -112,20 +125,21 @@
 
   <!-- 再生コントロール -->
   <div id="controls">
-    <button class="ctrl-btn" id="play-pause-btn">一時停止</button>
-    <button class="ctrl-btn" id="reset-view-btn">正面リセット</button>
-    <button class="ctrl-btn" id="change-video-btn">動画変更</button>
+    <button type="button" class="ctrl-btn" id="play-pause-btn">再生 / 停止</button>
+    <button type="button" class="ctrl-btn" id="reset-view-btn">正面リセット</button>
+    <button type="button" class="ctrl-btn" id="change-video-btn">動画選択</button>
   </div>
 
   <!-- VR空間 -->
-  <a-scene vr-mode-ui="enabled: true" renderer="antialias: true; colorManagement: true;">
+  <a-scene vr-mode-ui="enabled: true" renderer="antialias: true;">
     <a-assets>
-      <video id="theater-video" playsinline webkit-playsinline loop crossorigin="anonymous"></video>
+      <!-- ローカル動画再生を妨げるcrossorigin属性を削除 -->
+      <video id="theater-video" playsinline webkit-playsinline loop></video>
     </a-assets>
 
     <!-- 照明 -->
-    <a-light type="ambient" color="#222233" intensity="0.6"></a-light>
-    <a-light type="point" position="0 4 -2" color="#ffffff" intensity="0.4"></a-light>
+    <a-light type="ambient" color="#333344" intensity="0.8"></a-light>
+    <a-light type="point" position="0 4 -2" color="#ffffff" intensity="0.5"></a-light>
 
     <!-- 映画館の部屋 -->
     <a-plane position="0 -2 -5" rotation="-90 0 0" width="20" height="25" color="#1a0d0d"></a-plane>
@@ -137,7 +151,7 @@
 
     <!-- スクリーン枠とスクリーン -->
     <a-plane id="screen-frame" position="0 2.5 -14.85" width="16.4" height="9.4" color="#000000"></a-plane>
-    <a-video id="screen" src="#theater-video" position="0 2.5 -14.8" width="16" height="9"></a-video>
+    <a-video id="screen" src="#theater-video" position="0 2.5 -14.8" width="16" height="9" color="#ffffff"></a-video>
 
     <!-- 座席 -->
     
@@ -150,9 +164,10 @@
 
   <script>
     const fileInput = document.getElementById('file-input');
-    const selectLabel = document.getElementById('select-label');
+    const selectBtn = document.getElementById('select-btn');
+    const enterEmptyBtn = document.getElementById('enter-empty-btn');
     const overlay = document.getElementById('overlay');
-    const statusMsg = document.getElementById('status-msg');
+    const toast = document.getElementById('toast');
     const video = document.getElementById('theater-video');
     const screen = document.getElementById('screen');
     const screenFrame = document.getElementById('screen-frame');
@@ -162,6 +177,12 @@
     const changeVideoBtn = document.getElementById('change-video-btn');
     const cameraRig = document.getElementById('camera-rig');
     const mainCamera = document.getElementById('main-camera');
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    }
 
     // 座席の生成
     const seatsContainer = document.getElementById('seats');
@@ -177,26 +198,40 @@
       }
     }
 
-    // iOS向け：ボタンタップの瞬間にジャイロ許可をリクエストする
-    selectLabel.addEventListener('click', () => {
+    // ジャイロ許可リクエスト
+    function requestGyro() {
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission().catch(console.error);
       }
+    }
+
+    // 「動画を選択して開始」ボタン
+    selectBtn.addEventListener('click', () => {
+      requestGyro();
+      fileInput.click();
     });
 
-    // 動画選択時の処理
+    // 「動画なしで映画館に入る」ボタン（動作確認用）
+    enterEmptyBtn.addEventListener('click', () => {
+      requestGyro();
+      overlay.style.display = 'none';
+      controls.style.display = 'flex';
+      showToast('映画館モードに入りました');
+    });
+
+    // 動画ファイルが選ばれた時の処理
     fileInput.addEventListener('change', (event) => {
-      // 【修正箇所】先頭のファイル[0]を正しく取得
-      const file = event.target.files[0];
+      const file = event.target.files.item(0);
       if (!file) return;
 
-      statusMsg.textContent = '動画を読み込み中...';
+      // まず即座にスタート画面を消して映画館に入る
+      overlay.style.display = 'none';
+      controls.style.display = 'flex';
+      showToast('読み込み中: ' + file.name);
 
       const fileURL = URL.createObjectURL(file);
       video.src = fileURL;
-      video.load();
 
-      // メタデータ読み込み完了後にアスペクト比調整
       video.onloadedmetadata = () => {
         if (video.videoWidth && video.videoHeight) {
           const aspect = video.videoWidth / video.videoHeight;
@@ -209,30 +244,30 @@
         }
       };
 
-      // 再生開始（自動再生ブロック対策付き）
+      video.onerror = () => {
+        showToast('この動画形式はブラウザで再生できません（MP4推奨）');
+      };
+
       video.play().then(() => {
-        overlay.style.display = 'none';
-        controls.style.display = 'flex';
         playPauseBtn.textContent = '一時停止';
-        statusMsg.textContent = '';
-      }).catch((err) => {
-        // ブラウザ制限で自動再生がブロックされた場合でも画面を開いて再生ボタンを押せるようにする
-        console.warn('自動再生ブロック:', err);
-        overlay.style.display = 'none';
-        controls.style.display = 'flex';
+      }).catch(() => {
         playPauseBtn.textContent = '再生する';
-        statusMsg.textContent = '';
+        showToast('下の「再生する」ボタンを押してください');
       });
     });
 
     // 再生 / 一時停止
     playPauseBtn.addEventListener('click', () => {
+      if (!video.src) {
+        fileInput.click();
+        return;
+      }
       if (video.paused) {
         video.play();
         playPauseBtn.textContent = '一時停止';
       } else {
         video.pause();
-        playPauseBtn.textContent = '再生';
+        playPauseBtn.textContent = '再生する';
       }
     });
 
@@ -240,9 +275,10 @@
     resetViewBtn.addEventListener('click', () => {
       const currentRot = mainCamera.getAttribute('rotation');
       cameraRig.setAttribute('rotation', `0 ${-currentRot.y} 0`);
+      showToast('正面をリセットしました');
     });
 
-    // 動画変更
+    // 動画選択へ戻る
     changeVideoBtn.addEventListener('click', () => {
       video.pause();
       fileInput.value = '';
