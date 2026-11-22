@@ -34,8 +34,8 @@
       <button id="lightBtn">館内照明 切替</button>
     </div>
     <small>
-      マウスドラッグで視点移動、WASDで席の前後左右移動。<br />
-      VRゴーグルでは右下のVRボタンからWebXRに入れます。
+      動画ファイルを選ぶとスクリーンに表示されます。<br />
+      ドラッグで視点移動、WASDで移動、右下のVRボタンでWebXR対応。
     </small>
   </div>
 
@@ -43,37 +43,38 @@
 
   <a-scene id="scene" vr-mode-ui="enabled: true">
     <!-- 館内照明 -->
-    <a-light id="ambientLight" type="ambient" color="#667799" intensity="0.6"></a-light>
-    <a-light id="screenGlow" type="point" color="#aaccff" intensity="1.2" position="0 4 -8" distance="25"></a-light>
+    <a-light id="ambientLight" type="ambient" color="#7788aa" intensity="0.7"></a-light>
+    <a-light id="screenGlow" type="point" color="#aaccff" intensity="1.0" position="0 4.5 -14" distance="28"></a-light>
 
-    <!-- 映画館の床・壁・座席イメージ -->
-    <a-plane id="floor" rotation="-90 0 0" width="24" height="30" color="#161822" position="0 0 -5"></a-plane>
-    <a-box id="backWall" position="0 5 10" width="24" height="10" depth="0.5" color="#12141c"></a-box>
-    <a-box id="leftWall" position="-12 5 -5" width="0.5" height="10" depth="30" color="#12141c"></a-box>
-    <a-box id="rightWall" position="12 5 -5" width="0.5" height="10" depth="30" color="#12141c"></a-box>
+    <!-- 映画館の床・壁 -->
+    <a-plane id="floor" rotation="-90 0 0" width="26" height="32" color="#161822" position="0 0 -4"></a-plane>
+    <a-box id="frontWall" position="0 5 -20" width="26" height="10" depth="0.5" color="#12141c"></a-box>
+    <a-box id="backWall" position="0 5 12" width="26" height="10" depth="0.5" color="#12141c"></a-box>
+    <a-box id="leftWall" position="-13 5 -4" width="0.5" height="10" depth="32" color="#12141c"></a-box>
+    <a-box id="rightWall" position="13 5 -4" width="0.5" height="10" depth="32" color="#12141c"></a-box>
 
-    <!-- 前の座席（背もたれシルエット） -->
-    <a-box position="-2.2 0.55 -6.5" width="1.1" height="1.1" depth="0.4" color="#24161b"></a-box>
-    <a-box position="0 0.55 -6.5" width="1.1" height="1.1" depth="0.4" color="#24161b"></a-box>
-    <a-box position="2.2 0.55 -6.5" width="1.1" height="1.1" depth="0.4" color="#24161b"></a-box>
+    <!-- 視界を遮らない低めの座席シルエット -->
+    <a-box class="seat" position="-2.4 0.38 0.5" width="1.1" height="0.75" depth="0.5" color="#2a1820"></a-box>
+    <a-box class="seat" position="0 0.38 0.5" width="1.1" height="0.75" depth="0.5" color="#2a1820"></a-box>
+    <a-box class="seat" position="2.4 0.38 0.5" width="1.1" height="0.75" depth="0.5" color="#2a1820"></a-box>
 
-    <!-- 映画館スクリーン -->
+    <!-- 映画館スクリーン（動画読み込み後に表示） -->
     <a-curvedimage
       id="cinemaScreen"
-      src="#vrVideo"
-      radius="11"
-      theta-length="65"
-      theta-start="-32.5"
-      height="6.2"
-      position="0 4.2 -1"
+      visible="false"
+      radius="12"
+      theta-length="60"
+      theta-start="-30"
+      height="6.5"
+      position="0 4.5 -7"
       material="shader: flat; side: double"
     ></a-curvedimage>
 
-    <!-- 360度動画用スカイ球体（初期は非表示） -->
-    <a-sky id="sky360" src="#vrVideo" visible="false" material="shader: flat"></a-sky>
+    <!-- 360度動画用スカイ球体（360モード＋動画読み込み後に表示） -->
+    <a-sky id="sky360" visible="false" material="shader: flat"></a-sky>
 
     <!-- 観客カメラ -->
-    <a-entity id="rig" position="0 1.6 -3.5">
+    <a-entity id="rig" position="0 1.7 4">
       <a-camera look-controls wasd-controls></a-camera>
     </a-entity>
   </a-scene>
@@ -87,36 +88,45 @@
     const cinemaScreen = document.getElementById('cinemaScreen');
     const sky360 = document.getElementById('sky360');
     const ambientLight = document.getElementById('ambientLight');
-    const theaterProps = ['floor', 'backWall', 'leftWall', 'rightWall'];
+    const theaterProps = ['floor', 'frontWall', 'backWall', 'leftWall', 'rightWall'];
+    const seats = Array.from(document.querySelectorAll('.seat'));
 
+    let hasVideo = false;
     let lightsDimmed = false;
+
+    function updateVisibility() {
+      const is360 = modeSelect.value === '360';
+      cinemaScreen.setAttribute('visible', hasVideo && !is360);
+      sky360.setAttribute('visible', hasVideo && is360);
+      theaterProps.forEach((id) => {
+        document.getElementById(id).setAttribute('visible', !is360);
+      });
+      seats.forEach((seat) => seat.setAttribute('visible', !is360));
+    }
 
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const url = URL.createObjectURL(file);
       video.src = url;
+      hasVideo = true;
+      cinemaScreen.setAttribute('src', '#vrVideo');
+      sky360.setAttribute('src', '#vrVideo');
+      updateVisibility();
       video.play().catch(() => {});
     });
 
     playBtn.addEventListener('click', () => {
-      if (!video.src) return;
+      if (!hasVideo) return;
       if (video.paused) video.play();
       else video.pause();
     });
 
-    modeSelect.addEventListener('change', () => {
-      const is360 = modeSelect.value === '360';
-      cinemaScreen.setAttribute('visible', !is360);
-      sky360.setAttribute('visible', is360);
-      theaterProps.forEach((id) => {
-        document.getElementById(id).setAttribute('visible', !is360);
-      });
-    });
+    modeSelect.addEventListener('change', updateVisibility);
 
     lightBtn.addEventListener('click', () => {
       lightsDimmed = !lightsDimmed;
-      ambientLight.setAttribute('intensity', lightsDimmed ? 0.12 : 0.6);
+      ambientLight.setAttribute('intensity', lightsDimmed ? 0.15 : 0.7);
     });
   </script>
 </body>
