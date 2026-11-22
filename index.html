@@ -10,9 +10,9 @@
       position: fixed; top: 16px; left: 16px; z-index: 10;
       background: rgba(15, 18, 28, 0.85); padding: 14px 18px;
       border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
-      display: flex; flex-direction: column; gap: 10px; max-width: 340px;
+      display: flex; flex-direction: column; gap: 10px; max-width: 360px;
     }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     button, select {
       background: #1f2833; color: #fff; border: 1px solid #45a29e;
       padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
@@ -28,13 +28,19 @@
     <div class="row">
       <button id="playBtn">再生 / 一時停止</button>
       <select id="modeSelect">
-        <option value="screen">映画館スクリーン（平面/湾曲）</option>
-        <option value="360">360° 全天球VRモード</option>
+        <option value="screen">映画館スクリーン</option>
+        <option value="360">360° 全天球VR</option>
       </select>
       <button id="lightBtn">館内照明 切替</button>
     </div>
+    <div class="row">
+      <span style="font-size:12px;color:#cbd5e1;">座席:</span>
+      <button class="seatBtn" data-z="1">前</button>
+      <button class="seatBtn" data-z="7">中央</button>
+      <button class="seatBtn" data-z="13">後</button>
+    </div>
     <small>
-      動画ファイルを選ぶとスクリーンに表示されます。<br />
+      中央席からスクリーンまで十分な距離をとっています。<br />
       ドラッグで視点移動、WASDで移動、右下のVRボタンでWebXR対応。
     </small>
   </div>
@@ -44,37 +50,37 @@
   <a-scene id="scene" vr-mode-ui="enabled: true">
     <!-- 館内照明 -->
     <a-light id="ambientLight" type="ambient" color="#7788aa" intensity="0.7"></a-light>
-    <a-light id="screenGlow" type="point" color="#aaccff" intensity="1.0" position="0 4.5 -14" distance="28"></a-light>
+    <a-light id="screenGlow" type="point" color="#aaccff" intensity="1.0" position="0 6 -22" distance="45"></a-light>
 
-    <!-- 映画館の床・壁 -->
-    <a-plane id="floor" rotation="-90 0 0" width="26" height="32" color="#161822" position="0 0 -4"></a-plane>
-    <a-box id="frontWall" position="0 5 -20" width="26" height="10" depth="0.5" color="#12141c"></a-box>
-    <a-box id="backWall" position="0 5 12" width="26" height="10" depth="0.5" color="#12141c"></a-box>
-    <a-box id="leftWall" position="-13 5 -4" width="0.5" height="10" depth="32" color="#12141c"></a-box>
-    <a-box id="rightWall" position="13 5 -4" width="0.5" height="10" depth="32" color="#12141c"></a-box>
+    <!-- 奥行きのある映画館の床・壁・天井 -->
+    <a-plane id="floor" rotation="-90 0 0" width="34" height="52" color="#161822" position="0 0 -4"></a-plane>
+    <a-box id="frontWall" position="0 7 -30" width="34" height="14" depth="0.5" color="#12141c"></a-box>
+    <a-box id="backWall" position="0 7 22" width="34" height="14" depth="0.5" color="#12141c"></a-box>
+    <a-box id="leftWall" position="-17 7 -4" width="0.5" height="14" depth="52" color="#12141c"></a-box>
+    <a-box id="rightWall" position="17 7 -4" width="0.5" height="14" depth="52" color="#12141c"></a-box>
 
-    <!-- 視界を遮らない低めの座席シルエット -->
-    <a-box class="seat" position="-2.4 0.38 0.5" width="1.1" height="0.75" depth="0.5" color="#2a1820"></a-box>
-    <a-box class="seat" position="0 0.38 0.5" width="1.1" height="0.75" depth="0.5" color="#2a1820"></a-box>
-    <a-box class="seat" position="2.4 0.38 0.5" width="1.1" height="0.75" depth="0.5" color="#2a1820"></a-box>
+    <!-- 前方の座席シルエット（視界を邪魔しない高さ） -->
+    <a-box class="seat" position="-2.8 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
+    <a-box class="seat" position="0 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
+    <a-box class="seat" position="2.8 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
 
-    <!-- 映画館スクリーン（動画読み込み後に表示） -->
+    <!-- 映画館スクリーン（遠くに配置・ゆるやかな湾曲） -->
     <a-curvedimage
       id="cinemaScreen"
       visible="false"
-      radius="12"
-      theta-length="60"
-      theta-start="-30"
-      height="6.5"
-      position="0 4.5 -7"
+      radius="24"
+      theta-length="46"
+      theta-start="-23"
+      height="8.5"
+      position="0 5.5 -4"
       material="shader: flat; side: double"
     ></a-curvedimage>
 
-    <!-- 360度動画用スカイ球体（360モード＋動画読み込み後に表示） -->
+    <!-- 360度動画用スカイ球体 -->
     <a-sky id="sky360" visible="false" material="shader: flat"></a-sky>
 
-    <!-- 観客カメラ -->
-    <a-entity id="rig" position="0 1.7 4">
+    <!-- 観客カメラ（デフォルト：中央席 z=7） -->
+    <a-entity id="rig" position="0 1.65 7">
       <a-camera look-controls wasd-controls></a-camera>
     </a-entity>
   </a-scene>
@@ -88,8 +94,10 @@
     const cinemaScreen = document.getElementById('cinemaScreen');
     const sky360 = document.getElementById('sky360');
     const ambientLight = document.getElementById('ambientLight');
+    const rig = document.getElementById('rig');
     const theaterProps = ['floor', 'frontWall', 'backWall', 'leftWall', 'rightWall'];
     const seats = Array.from(document.querySelectorAll('.seat'));
+    const seatBtns = Array.from(document.querySelectorAll('.seatBtn'));
 
     let hasVideo = false;
     let lightsDimmed = false;
@@ -127,6 +135,13 @@
     lightBtn.addEventListener('click', () => {
       lightsDimmed = !lightsDimmed;
       ambientLight.setAttribute('intensity', lightsDimmed ? 0.15 : 0.7);
+    });
+
+    seatBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const z = Number(btn.dataset.z);
+        rig.setAttribute('position', `0 1.65 ${z}`);
+      });
     });
   </script>
 </body>
