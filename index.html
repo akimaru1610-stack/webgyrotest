@@ -6,11 +6,11 @@
   <title>WebVR シアター</title>
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
   <style>
-    html, body { margin: 0; width: 100%; height: 100%; font-family: sans-serif; background: #0b0c10; color: #fff; overflow: hidden; }
+    html, body { margin: 0; width: 100%; height: 100%; font-family: sans-serif; background: #111; color: #fff; overflow: hidden; }
     #ui {
       position: fixed; top: 12px; left: 12px; z-index: 20;
-      background: rgba(15, 18, 28, 0.88); padding: 12px 16px;
-      border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(15, 18, 28, 0.9); padding: 12px 16px;
+      border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);
       display: flex; flex-direction: column; gap: 8px; max-width: 370px;
     }
     .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -19,19 +19,17 @@
       padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
     }
     button:hover { background: #2c3a4b; }
-    small { color: #9aa5b1; line-height: 1.4; }
-
-    /* 2画面時のセンター仕切り線＆終了ボタン */
+    small { color: #cbd5e1; line-height: 1.4; }
+    #status { color: #7dd3fc; font-size: 12px; }
     #sbsDivider {
       display: none; position: fixed; top: 0; bottom: 0; left: 50%;
-      width: 2px; background: rgba(255,255,255,0.18); z-index: 15; pointer-events: none;
+      width: 2px; background: rgba(255,255,255,0.25); z-index: 15; pointer-events: none;
     }
     #sbsDivider.active { display: block; }
     #exitSbsBtn {
-      position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
-      z-index: 30; background: rgba(20, 24, 36, 0.92); border: 1px solid #66fcf1;
+      display: none; position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+      z-index: 30; background: rgba(20, 24, 36, 0.95); border: 1px solid #66fcf1;
       color: #fff; padding: 8px 16px; border-radius: 999px; font-size: 13px;
-      display: none;
     }
     #exitSbsBtn.active { display: block; }
   </style>
@@ -39,6 +37,7 @@
 <body>
   <div id="ui">
     <strong>VR 映画館プレイヤー</strong>
+    <div id="status">初期化中...</div>
     <input type="file" id="fileInput" accept="video/*" />
     <div class="row">
       <button id="playBtn">再生 / 一時停止</button>
@@ -50,61 +49,68 @@
     </div>
     <div class="row">
       <span style="font-size:12px;color:#cbd5e1;">座席:</span>
-      <button class="seatBtn" data-z="1">前</button>
-      <button class="seatBtn" data-z="7">中央</button>
-      <button class="seatBtn" data-z="13">後</button>
+      <button class="seatBtn" data-z="2">前</button>
+      <button class="seatBtn" data-z="8">中央</button>
+      <button class="seatBtn" data-z="14">後</button>
       <button id="sbsBtn">100均VR（2画面）</button>
     </div>
-    <small>
-      ドラッグで視点移動、WASDで移動。<br />
-      100均ゴーグルは「100均VR（2画面）」でスマホを横向きにセットしてください。
-    </small>
+    <small>ドラッグで視点移動、WASDで移動。</small>
   </div>
 
   <div id="sbsDivider"></div>
   <button id="exitSbsBtn">1画面に戻す</button>
 
-  <video id="vrVideo" crossorigin="anonymous" playsinline loop style="display:none"></video>
+  <video id="vrVideo" playsinline loop muted style="display:none"></video>
 
   <a-scene id="scene" vr-mode-ui="enabled: true">
-    <!-- 館内照明 -->
-    <a-light id="ambientLight" type="ambient" color="#7788aa" intensity="0.7"></a-light>
-    <a-light id="screenGlow" type="point" color="#aaccff" intensity="1.2" position="0 6 -22" distance="45"></a-light>
+    <!-- 背景色（真っ暗防止） -->
+    <a-sky color="#181c28"></a-sky>
 
-    <!-- 奥行きのある映画館の床・壁 -->
-    <a-plane id="floor" rotation="-90 0 0" width="34" height="52" color="#161822" position="0 0 -4"></a-plane>
-    <a-box id="frontWall" position="0 7 -30" width="34" height="14" depth="0.5" color="#12141c"></a-box>
-    <a-box id="backWall" position="0 7 22" width="34" height="14" depth="0.5" color="#12141c"></a-box>
-    <a-box id="leftWall" position="-17 7 -4" width="0.5" height="14" depth="52" color="#12141c"></a-box>
-    <a-box id="rightWall" position="17 7 -4" width="0.5" height="14" depth="52" color="#12141c"></a-box>
+    <!-- 照明 -->
+    <a-light id="ambientLight" type="ambient" color="#ffffff" intensity="0.9"></a-light>
+    <a-light id="dirLight" type="directional" color="#ffffff" intensity="0.6" position="0 10 5"></a-light>
 
-    <!-- 前方の座席シルエット -->
-    <a-box class="seat" position="-2.8 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
-    <a-box class="seat" position="0 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
-    <a-box class="seat" position="2.8 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
+    <!-- 映画館の床と壁 -->
+    <a-plane id="floor" rotation="-90 0 0" width="36" height="50" color="#262b3d" position="0 0 -4"></a-plane>
+    <a-plane id="frontWall" width="36" height="14" color="#1a1f2e" position="0 7 -24"></a-plane>
+    <a-plane id="leftWall" rotation="0 90 0" width="50" height="14" color="#171b28" position="-18 7 -4"></a-plane>
+    <a-plane id="rightWall" rotation="0 -90 0" width="50" height="14" color="#171b28" position="18 7 -4"></a-plane>
 
-    <!-- 映画館スクリーン -->
-    <a-curvedimage
+    <!-- 前の座席（低い背もたれ） -->
+    <a-box class="seat" position="-2.6 0.35 4" width="1.2" height="0.7" depth="0.5" color="#4a2534"></a-box>
+    <a-box class="seat" position="0 0.35 4" width="1.2" height="0.7" depth="0.5" color="#4a2534"></a-box>
+    <a-box class="seat" position="2.6 0.35 4" width="1.2" height="0.7" depth="0.5" color="#4a2534"></a-box>
+
+    <!-- 大きめのスクリーン（動画未選択時は淡い青グレーのスクリーン枠を表示） -->
+    <a-plane
       id="cinemaScreen"
-      visible="false"
-      radius="24"
-      theta-length="54"
-      theta-start="-27"
-      height="10.5"
-      position="0 5.8 -4"
+      width="18"
+      height="10"
+      position="0 6 -14"
+      color="#3b4d6b"
       material="shader: flat; side: double"
-    ></a-curvedimage>
+    ></a-plane>
 
-    <!-- 360度動画用スカイ球体 -->
-    <a-sky id="sky360" visible="false" material="shader: flat"></a-sky>
+    <!-- 360度動画用球体 -->
+    <a-sphere
+      id="sky360"
+      radius="60"
+      visible="false"
+      material="shader: flat; side: back"
+    ></a-sphere>
 
     <!-- 観客カメラ -->
-    <a-entity id="rig" position="0 1.65 7">
+    <a-entity id="rig" position="0 1.7 8">
       <a-camera id="mainCam" look-controls wasd-controls></a-camera>
     </a-entity>
   </a-scene>
 
   <script>
+    const statusEl = document.getElementById('status');
+    window.addEventListener('error', (ev) => {
+      statusEl.textContent = 'エラー: ' + (ev.message || '不明なエラー');
+    });
+
     const fileInput = document.getElementById('fileInput');
     const video = document.getElementById('vrVideo');
     const playBtn = document.getElementById('playBtn');
@@ -119,7 +125,7 @@
     const ambientLight = document.getElementById('ambientLight');
     const rig = document.getElementById('rig');
     const sceneEl = document.getElementById('scene');
-    const theaterProps = ['floor', 'frontWall', 'backWall', 'leftWall', 'rightWall'];
+    const theaterProps = ['floor', 'frontWall', 'leftWall', 'rightWall'];
     const seats = Array.from(document.querySelectorAll('.seat'));
     const seatBtns = Array.from(document.querySelectorAll('.seatBtn'));
 
@@ -129,9 +135,13 @@
     let leftCam, rightCam, rafId;
     let prevUrl = null;
 
+    sceneEl.addEventListener('loaded', () => {
+      statusEl.textContent = 'シアター準備完了（動画を選択してください）';
+    });
+
     function updateVisibility() {
       const is360 = modeSelect.value === '360';
-      cinemaScreen.setAttribute('visible', hasVideo && !is360);
+      cinemaScreen.setAttribute('visible', !is360);
       sky360.setAttribute('visible', hasVideo && is360);
       theaterProps.forEach((id) => {
         document.getElementById(id).setAttribute('visible', !is360);
@@ -146,11 +156,18 @@
       const url = URL.createObjectURL(file);
       prevUrl = url;
       video.src = url;
+      video.muted = false;
       hasVideo = true;
-      cinemaScreen.setAttribute('src', '#vrVideo');
-      sky360.setAttribute('src', '#vrVideo');
+      cinemaScreen.setAttribute('material', 'src: #vrVideo; shader: flat; side: double; color: #ffffff');
+      sky360.setAttribute('material', 'src: #vrVideo; shader: flat; side: back; color: #ffffff');
       updateVisibility();
-      video.play().catch(() => {});
+      video.play().then(() => {
+        statusEl.textContent = '再生中: ' + file.name;
+      }).catch(() => {
+        video.muted = true;
+        video.play().catch(() => {});
+        statusEl.textContent = '再生中（ミュート）: ' + file.name;
+      });
     });
 
     playBtn.addEventListener('click', () => {
@@ -163,50 +180,46 @@
 
     lightBtn.addEventListener('click', () => {
       lightsDimmed = !lightsDimmed;
-      ambientLight.setAttribute('intensity', lightsDimmed ? 0.15 : 0.7);
+      ambientLight.setAttribute('intensity', lightsDimmed ? 0.2 : 0.9);
     });
 
     seatBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
         const z = Number(btn.dataset.z);
-        rig.setAttribute('position', `0 1.65 ${z}`);
+        rig.setAttribute('position', `0 1.7 ${z}`);
       });
     });
 
-    async function requestGyroIfNeeded() {
-      if (typeof DeviceOrientationEvent !== 'undefined' &&
-          typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try {
-          await DeviceOrientationEvent.requestPermission();
-        } catch (_) {}
-      }
-    }
-
     function startSBSLoop() {
       const renderer = sceneEl.renderer;
+      if (!renderer) {
+        statusEl.textContent = 'WebGLレンダラー未取得';
+        return;
+      }
       const threeScene = sceneEl.object3D;
       const rigPos = rig.object3D.position;
       const mainCamObj = document.getElementById('mainCam').object3D;
       const eyeOffset = 0.08;
 
       if (!leftCam) {
-        leftCam = new THREE.PerspectiveCamera(72, 1, 0.1, 200);
-        rightCam = new THREE.PerspectiveCamera(72, 1, 0.1, 200);
+        leftCam = new THREE.PerspectiveCamera(72, 1, 0.1, 300);
+        rightCam = new THREE.PerspectiveCamera(72, 1, 0.1, 300);
       }
 
-      const prevScissorTest = renderer.getScissorTest();
+      // A-Frame標準ループを止めて自前2画面ループへ
+      if (renderer.setAnimationLoop) {
+        renderer.setAnimationLoop(null);
+      }
       renderer.setScissorTest(true);
 
       const tick = () => {
         if (!sbsEnabled) return;
-
         const w = window.innerWidth;
         const h = Math.max(window.innerHeight, 1);
         const halfW = Math.floor(w / 2);
         const dpr = renderer.getPixelRatio();
 
         renderer.setSize(w, h, false);
-
         const aspect = halfW / h;
         leftCam.aspect = aspect;
         rightCam.aspect = aspect;
@@ -215,14 +228,12 @@
 
         const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(mainCamObj.quaternion);
 
-        // 左目（画面左側）
         leftCam.position.copy(rigPos).addScaledVector(rightVec, -eyeOffset);
         leftCam.quaternion.copy(mainCamObj.quaternion);
         renderer.setViewport(0, 0, halfW * dpr, h * dpr);
         renderer.setScissor(0, 0, halfW * dpr, h * dpr);
         renderer.render(threeScene, leftCam);
 
-        // 右目（画面右側）
         rightCam.position.copy(rigPos).addScaledVector(rightVec, eyeOffset);
         rightCam.quaternion.copy(mainCamObj.quaternion);
         renderer.setViewport(halfW * dpr, 0, (w - halfW) * dpr, h * dpr);
@@ -231,21 +242,18 @@
 
         rafId = requestAnimationFrame(tick);
       };
-
-      // A-Frame標準ループと競合しないよう一度一時停止
-      if (sceneEl.renderer && sceneEl.renderer.setAnimationLoop) {
-        sceneEl.renderer.setAnimationLoop(null);
-      }
       tick();
     }
 
     async function enableSBS() {
-      await requestGyroIfNeeded();
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try { await DeviceOrientationEvent.requestPermission(); } catch (_) {}
+      }
       sbsEnabled = true;
       sbsDivider.classList.add('active');
       exitSbsBtn.classList.add('active');
       ui.style.display = 'none';
-
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
@@ -255,19 +263,6 @@
     function disableSBS() {
       sbsEnabled = false;
       cancelAnimationFrame(rafId);
-      sbsDivider.classList.remove('active');
-      exitSbsBtn.classList.remove('active');
-      ui.style.display = 'flex';
-
-      const renderer = sceneEl.renderer;
-      renderer.setScissorTest(false);
-      renderer.setViewport(0, 0, window.innerWidth * renderer.getPixelRatio(), window.innerHeight * renderer.getPixelRatio());
-      renderer.setSize(window.innerWidth, window.innerHeight, false);
-
-      // A-Frameの描画ループを再開
-      if (sceneEl.render) {
-        sceneEl.render(performance.now());
-      }
       window.location.reload();
     }
 
