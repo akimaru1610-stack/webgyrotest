@@ -6,7 +6,7 @@
   <title>WebVR シアター</title>
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
   <style>
-    body { margin: 0; font-family: sans-serif; background: #0b0c10; color: #fff; overflow: hidden; }
+    html, body { margin: 0; width: 100%; height: 100%; font-family: sans-serif; background: #0b0c10; color: #fff; overflow: hidden; }
     #ui {
       position: fixed; top: 12px; left: 12px; z-index: 20;
       background: rgba(15, 18, 28, 0.88); padding: 12px 16px;
@@ -19,23 +19,17 @@
       padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
     }
     button:hover { background: #2c3a4b; }
-    button.active { background: #45a29e; color: #0b0c10; font-weight: bold; }
     small { color: #9aa5b1; line-height: 1.4; }
 
-    /* 100均VR（2画面分割）オーバーレイ */
-    #sbsOverlay {
-      display: none; position: fixed; inset: 0; z-index: 15;
-      background: #000; flex-direction: row;
+    /* 2画面時のセンター仕切り線＆終了ボタン */
+    #sbsDivider {
+      display: none; position: fixed; top: 0; bottom: 0; left: 50%;
+      width: 2px; background: rgba(255,255,255,0.18); z-index: 15; pointer-events: none;
     }
-    #sbsOverlay.active { display: flex; }
-    .eyePane {
-      position: relative; width: 50%; height: 100%; overflow: hidden;
-      border-right: 1px solid #222;
-    }
-    .eyePane:last-child { border-right: none; }
+    #sbsDivider.active { display: block; }
     #exitSbsBtn {
       position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
-      z-index: 30; background: rgba(20, 24, 36, 0.9); border: 1px solid #66fcf1;
+      z-index: 30; background: rgba(20, 24, 36, 0.92); border: 1px solid #66fcf1;
       color: #fff; padding: 8px 16px; border-radius: 999px; font-size: 13px;
       display: none;
     }
@@ -67,16 +61,12 @@
     </small>
   </div>
 
-  <!-- 2画面表示用コンテナ -->
-  <div id="sbsOverlay">
-    <div class="eyePane" id="leftEye"></div>
-    <div class="eyePane" id="rightEye"></div>
-  </div>
+  <div id="sbsDivider"></div>
   <button id="exitSbsBtn">1画面に戻す</button>
 
   <video id="vrVideo" crossorigin="anonymous" playsinline loop style="display:none"></video>
 
-  <a-scene id="scene" vr-mode-ui="enabled: true" embedded>
+  <a-scene id="scene" vr-mode-ui="enabled: true">
     <!-- 館内照明 -->
     <a-light id="ambientLight" type="ambient" color="#7788aa" intensity="0.7"></a-light>
     <a-light id="screenGlow" type="point" color="#aaccff" intensity="1.2" position="0 6 -22" distance="45"></a-light>
@@ -93,7 +83,7 @@
     <a-box class="seat" position="0 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
     <a-box class="seat" position="2.8 0.35 3.5" width="1.2" height="0.7" depth="0.5" color="#2a1820"></a-box>
 
-    <!-- 映画館スクリーン（少し大きめに拡大） -->
+    <!-- 映画館スクリーン -->
     <a-curvedimage
       id="cinemaScreen"
       visible="false"
@@ -122,9 +112,7 @@
     const lightBtn = document.getElementById('lightBtn');
     const sbsBtn = document.getElementById('sbsBtn');
     const exitSbsBtn = document.getElementById('exitSbsBtn');
-    const sbsOverlay = document.getElementById('sbsOverlay');
-    const leftEye = document.getElementById('leftEye');
-    const rightEye = document.getElementById('rightEye');
+    const sbsDivider = document.getElementById('sbsDivider');
     const ui = document.getElementById('ui');
     const cinemaScreen = document.getElementById('cinemaScreen');
     const sky360 = document.getElementById('sky360');
@@ -138,7 +126,8 @@
     let hasVideo = false;
     let lightsDimmed = false;
     let sbsEnabled = false;
-    let leftRenderer, rightRenderer, leftCam, rightCam, rafId;
+    let leftCam, rightCam, rafId;
+    let prevUrl = null;
 
     function updateVisibility() {
       const is360 = modeSelect.value === '360';
@@ -153,7 +142,9 @@
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (prevUrl) URL.revokeObjectURL(prevUrl);
       const url = URL.createObjectURL(file);
+      prevUrl = url;
       video.src = url;
       hasVideo = true;
       cinemaScreen.setAttribute('src', '#vrVideo');
@@ -182,7 +173,6 @@
       });
     });
 
-    // iOS 13+ 向けジャイロ許可リクエスト
     async function requestGyroIfNeeded() {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -192,75 +182,69 @@
       }
     }
 
-    function createEyeRenderer(container) {
-      container.innerHTML = '';
-      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      container.appendChild(renderer.domElement);
-
-      const cam = new THREE.PerspectiveCamera(
-        72,
-        container.clientWidth / Math.max(container.clientHeight, 1),
-        0.1,
-        200
-      );
-      return { renderer, cam };
-    }
-
-    function resizeEyeRenderers() {
-      if (!sbsEnabled || !leftRenderer || !rightRenderer) return;
-      [
-        [leftEye, leftRenderer, leftCam],
-        [rightEye, rightRenderer, rightCam]
-      ].forEach(([pane, ren, cam]) => {
-        const w = pane.clientWidth;
-        const h = Math.max(pane.clientHeight, 1);
-        ren.setSize(w, h);
-        cam.aspect = w / h;
-        cam.updateProjectionMatrix();
-      });
-    }
-
     function startSBSLoop() {
+      const renderer = sceneEl.renderer;
       const threeScene = sceneEl.object3D;
       const rigPos = rig.object3D.position;
       const mainCamObj = document.getElementById('mainCam').object3D;
       const eyeOffset = 0.08;
 
+      if (!leftCam) {
+        leftCam = new THREE.PerspectiveCamera(72, 1, 0.1, 200);
+        rightCam = new THREE.PerspectiveCamera(72, 1, 0.1, 200);
+      }
+
+      const prevScissorTest = renderer.getScissorTest();
+      renderer.setScissorTest(true);
+
       const tick = () => {
         if (!sbsEnabled) return;
-        const euler = new THREE.Euler().setFromQuaternion(mainCamObj.quaternion, 'YXZ');
+
+        const w = window.innerWidth;
+        const h = Math.max(window.innerHeight, 1);
+        const halfW = Math.floor(w / 2);
+        const dpr = renderer.getPixelRatio();
+
+        renderer.setSize(w, h, false);
+
+        const aspect = halfW / h;
+        leftCam.aspect = aspect;
+        rightCam.aspect = aspect;
+        leftCam.updateProjectionMatrix();
+        rightCam.updateProjectionMatrix();
+
         const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(mainCamObj.quaternion);
 
-        // 左目カメラ
+        // 左目（画面左側）
         leftCam.position.copy(rigPos).addScaledVector(rightVec, -eyeOffset);
         leftCam.quaternion.copy(mainCamObj.quaternion);
-        leftRenderer.render(threeScene, leftCam);
+        renderer.setViewport(0, 0, halfW * dpr, h * dpr);
+        renderer.setScissor(0, 0, halfW * dpr, h * dpr);
+        renderer.render(threeScene, leftCam);
 
-        // 右目カメラ
+        // 右目（画面右側）
         rightCam.position.copy(rigPos).addScaledVector(rightVec, eyeOffset);
         rightCam.quaternion.copy(mainCamObj.quaternion);
-        rightRenderer.render(threeScene, rightCam);
+        renderer.setViewport(halfW * dpr, 0, (w - halfW) * dpr, h * dpr);
+        renderer.setScissor(halfW * dpr, 0, (w - halfW) * dpr, h * dpr);
+        renderer.render(threeScene, rightCam);
 
         rafId = requestAnimationFrame(tick);
       };
+
+      // A-Frame標準ループと競合しないよう一度一時停止
+      if (sceneEl.renderer && sceneEl.renderer.setAnimationLoop) {
+        sceneEl.renderer.setAnimationLoop(null);
+      }
       tick();
     }
 
     async function enableSBS() {
       await requestGyroIfNeeded();
       sbsEnabled = true;
-      sbsOverlay.classList.add('active');
+      sbsDivider.classList.add('active');
       exitSbsBtn.classList.add('active');
       ui.style.display = 'none';
-      sceneEl.style.opacity = '0';
-      sceneEl.style.pointerEvents = 'none';
-
-      const l = createEyeRenderer(leftEye);
-      const r = createEyeRenderer(rightEye);
-      leftRenderer = l.renderer; leftCam = l.cam;
-      rightRenderer = r.renderer; rightCam = r.cam;
 
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -271,21 +255,24 @@
     function disableSBS() {
       sbsEnabled = false;
       cancelAnimationFrame(rafId);
-      sbsOverlay.classList.remove('active');
+      sbsDivider.classList.remove('active');
       exitSbsBtn.classList.remove('active');
       ui.style.display = 'flex';
-      sceneEl.style.opacity = '1';
-      sceneEl.style.pointerEvents = 'auto';
-      leftEye.innerHTML = '';
-      rightEye.innerHTML = '';
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+
+      const renderer = sceneEl.renderer;
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, window.innerWidth * renderer.getPixelRatio(), window.innerHeight * renderer.getPixelRatio());
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+
+      // A-Frameの描画ループを再開
+      if (sceneEl.render) {
+        sceneEl.render(performance.now());
       }
+      window.location.reload();
     }
 
     sbsBtn.addEventListener('click', enableSBS);
     exitSbsBtn.addEventListener('click', disableSBS);
-    window.addEventListener('resize', resizeEyeRenderers);
   </script>
 </body>
 </html>
